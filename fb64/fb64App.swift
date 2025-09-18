@@ -7,7 +7,7 @@
 
 import SwiftUI
 
-@main
+
 struct fb64App: App {
     var body: some Scene {
         WindowGroup {
