@@ -32,18 +32,80 @@ class FileService: ObservableObject {
     
     // MARK: - Public Methods
     
-    func encodeFile(_ fileURL: URL) async throws -> String {
-        let data = try Data(contentsOf: fileURL)
-        let base64String = data.base64EncodedString()
+    /// Encodes a file to base64 string with progress tracking
+    /// - Parameters:
+    ///   - fileURL: URL of the file to encode
+    ///   - chunkSize: Size of each chunk in bytes (default: 1MB)
+    ///   - progress: Optional progress callback that reports bytes processed and total bytes
+    /// - Returns: Base64 encoded string
+    func encodeFile(_ fileURL: URL, chunkSize: Int = 1_048_576, progress: ((Int64, Int64) -> Void)? = nil) async throws -> String {
+        let attributes = try FileManager.default.attributesOfItem(atPath: fileURL.path)
+        let fileSize = (attributes[.size] as? Int64) ?? 0
         
-        if base64String.isEmpty {
-            throw FileServiceError.encodingFailed
+        // For small files, use the simpler method
+        if fileSize < Int64(chunkSize) {
+            let data = try Data(contentsOf: fileURL)
+            let base64String = data.base64EncodedString()
+            
+            if base64String.isEmpty {
+                throw FileServiceError.encodingFailed
+            }
+            
+            let fileInfo = createFileInfo(from: fileURL, data: data)
+            addToRecentFiles(fileInfo)
+            
+            return base64String
         }
         
-        let fileInfo = createFileInfo(from: fileURL, data: data)
+        // For large files, use chunked encoding
+        guard let inputStream = InputStream(url: fileURL) else {
+            throw FileServiceError.fileNotFound
+        }
+        
+        inputStream.open()
+        defer { inputStream.close() }
+        
+        var buffer = [UInt8](repeating: 0, count: chunkSize)
+        var result = ""
+        var totalBytesRead: Int64 = 0
+        
+        while inputStream.hasBytesAvailable {
+            let bytesRead = inputStream.read(&buffer, maxLength: chunkSize)
+            
+            if bytesRead < 0 {
+                // Stream error occurred
+                throw inputStream.streamError ?? FileServiceError.encodingFailed
+            } else if bytesRead == 0 {
+                // End of stream
+                break
+            }
+            
+            // Process the chunk
+            let chunkData = Data(bytes: buffer, count: bytesRead)
+            let chunkString = chunkData.base64EncodedString()
+            result += chunkString
+            
+            // Update progress
+            totalBytesRead += Int64(bytesRead)
+            progress?(totalBytesRead, fileSize)
+            
+            // Allow the system to process other tasks
+            try await Task.sleep(nanoseconds: 10_000_000) // 10ms
+        }
+        
+        // Create file info with the actual size
+        let fileExtension = fileURL.pathExtension.lowercased()
+        let fileType = FileType.from(fileExtension: fileExtension)
+        let fileInfo = FileInfo(
+            name: fileURL.lastPathComponent,
+            size: fileSize,
+            type: fileType,
+            data: Data(),
+            created: Date()
+        )
         addToRecentFiles(fileInfo)
         
-        return base64String
+        return result
     }
     
     func decodeFile(base64String: String, fileName: String, fileExtension: String) throws -> FileInfo {

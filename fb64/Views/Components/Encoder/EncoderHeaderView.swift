@@ -2,22 +2,22 @@ import SwiftUI
 
 struct EncoderHeaderView: View {
     var body: some View {
-        VStack(spacing: 16) {
-            Text("File Encoder")
-                .font(.largeTitle.bold())
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal)
+        VStack(spacing: 8) {
+            Image(systemName: "doc.text.fill")
+                .font(.system(size: 40))
+                .foregroundColor(.accentColor)
+                .padding(.bottom, 4)
+            
+            Text("Base64 Encoder")
+                .font(.largeTitle.weight(.bold))
+                .multilineTextAlignment(.center)
             
             Text("Convert files to base64 and back")
                 .font(.subheadline)
                 .foregroundColor(.secondary)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal)
         }
-        .padding(.vertical)
-        .background(Color(.systemBackground))
-        .compositingGroup()
-        .shadow(radius: 2)
+        .padding(.top, 8)
+        .padding(.bottom, 16)
     }
 }
 

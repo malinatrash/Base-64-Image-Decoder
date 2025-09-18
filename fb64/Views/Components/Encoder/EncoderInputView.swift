@@ -7,43 +7,67 @@ struct EncoderInputView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text("Input")
+                Text("File to Encode")
                     .font(.headline)
                 
                 Spacer()
                 
                 if viewModel.isEncoding {
-                    ProgressView()
-                        .progressViewStyle(CircularProgressViewStyle())
+                    VStack(alignment: .trailing, spacing: 4) {
+                        if viewModel.totalBytesToProcess > 0 {
+                            Text("\(viewModel.bytesProcessed.formatted(.byteCount(style: .file))) / \(viewModel.totalBytesToProcess.formatted(.byteCount(style: .file)))")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
+                        ProgressView(value: viewModel.encodingProgress, total: 1.0)
+                            .progressViewStyle(LinearProgressViewStyle())
+                            .frame(width: 100)
+                    }
                 }
             }
             
             ZStack(alignment: .topLeading) {
                 if viewModel.inputText.isEmpty {
-                    Text("Paste base64 string here or import a file...")
+                    Text("Select a file to encode to base64...")
                         .foregroundColor(.secondary)
                         .padding(8)
                 }
                 
-                TextEditor(text: $viewModel.inputText)
-                    .font(.system(.body, design: .monospaced))
-                    .frame(height: 150)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 8)
-                            .stroke(Color.gray.opacity(0.2), lineWidth: 1)
-                    )
+                // Always use the displayText which is optimized for performance
+                ScrollView {
+                    Text(viewModel.displayText)
+                        .font(.system(.caption, design: .monospaced))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .textSelection(.enabled)
+                        .padding(8)
+                }
+                .frame(height: 150)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                )
             }
             
             HStack {
                 Spacer()
                 
-                Button(action: { UIPasteboard.general.string = viewModel.inputText }) {
-                    Label("Copy", systemImage: "doc.on.doc")
-                }
-                .disabled(viewModel.inputText.isEmpty)
-                
-                Button(action: { viewModel.inputText = UIPasteboard.general.string ?? "" }) {
-                    Label("Paste", systemImage: "doc.on.clipboard")
+                if !viewModel.inputText.isEmpty {
+                    HStack {
+                        Text("\(viewModel.inputText.count.formatted()) characters")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        
+                        Button(action: {
+                            // Copy in background to avoid UI freeze
+                            Task {
+                                let text = viewModel.inputText
+                                UIPasteboard.general.string = text
+                            }
+                        }) {
+                            Label("Copy", systemImage: "doc.on.doc")
+                                .disabled(viewModel.isEncoding)
+                        }
+                    }
                 }
             }
             .buttonStyle(.bordered)

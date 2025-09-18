@@ -7,24 +7,26 @@ struct EncoderActionButtons: View {
     var body: some View {
         HStack(spacing: 16) {
             Button(action: onImportFile) {
-                Label("Encode File", systemImage: "arrow.up.doc")
+                Label(viewModel.inputText.isEmpty ? "Select File" : "Change File", systemImage: "doc")
                     .frame(maxWidth: .infinity)
             }
-            .buttonStyle(.borderedProminent)
-            .disabled(viewModel.isEncoding || viewModel.isDecoding)
+            .buttonStyle(.bordered)
+            .disabled(viewModel.isEncoding)
             
-            Button(action: { Task { await viewModel.decodeFile() } }) {
-                if viewModel.isDecoding {
+            Button(action: { 
+                Task { await viewModel.encodeFile() }
+            }) {
+                if viewModel.isEncoding {
                     ProgressView()
                         .progressViewStyle(CircularProgressViewStyle())
                         .frame(maxWidth: .infinity)
                 } else {
-                    Label("Decode", systemImage: "arrow.down.doc")
+                    Label("Encode to Base64", systemImage: "arrow.right.doc.on.clipboard")
                         .frame(maxWidth: .infinity)
                 }
             }
             .buttonStyle(.borderedProminent)
-            .disabled(viewModel.inputText.isEmpty || viewModel.isDecoding || viewModel.isEncoding)
+            .disabled(viewModel.inputText.isEmpty || viewModel.isEncoding)
         }
         .padding(.horizontal)
     }

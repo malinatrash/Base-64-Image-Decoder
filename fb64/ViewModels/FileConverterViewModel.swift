@@ -4,9 +4,23 @@ import UniformTypeIdentifiers
 
 @MainActor
 class FileConverterViewModel: ObservableObject {
-    @Published var inputText: String = ""
+    @Published var inputText: String = "" {
+        didSet {
+            // Limit the preview text to prevent UI lag
+            if inputText.count > 10_000 {
+                displayText = String(inputText.prefix(10_000)) + "\n\n[Truncated - \(inputText.count - 10_000) more characters]"
+            } else {
+                displayText = inputText
+            }
+        }
+    }
+    @Published private(set) var displayText: String = ""
     @Published var selectedFile: FileInfo?
+    @Published var selectedFileURL: URL?
     @Published var isEncoding: Bool = false
+    @Published var encodingProgress: Double = 0
+    @Published var totalBytesToProcess: Int64 = 0
+    @Published var bytesProcessed: Int64 = 0
     @Published var isDecoding: Bool = false
     @Published var errorMessage: String?
     @Published var showFilePicker: Bool = false
@@ -32,18 +46,42 @@ class FileConverterViewModel: ObservableObject {
     // MARK: - Public Methods
     
     func encodeFile(_ url: URL) async {
+        selectedFileURL = url
         isEncoding = true
         errorMessage = nil
+        encodingProgress = 0
+        bytesProcessed = 0
         
         do {
-            let base64String = try await fileService.encodeFile(url)
-            inputText = base64String
-            showSuccess = true
+            let base64String = try await fileService.encodeFile(url) { [weak self] processed, total in
+                guard let self = self else { return }
+                self.totalBytesToProcess = total
+                self.bytesProcessed = processed
+                self.encodingProgress = total > 0 ? Double(processed) / Double(total) : 0
+            }
+            
+            // Update the full text in the background
+            let textToUpdate = base64String
+            await MainActor.run {
+                // This will trigger the didSet which will handle the truncation
+                self.inputText = textToUpdate
+                self.showSuccess = true
+            }
         } catch {
-            handleError(error)
+            await MainActor.run {
+                self.handleError(error)
+            }
         }
         
-        isEncoding = false
+        await MainActor.run {
+            self.isEncoding = false
+            self.encodingProgress = 0
+        }
+    }
+    
+    func encodeFile() async {
+        guard let url = selectedFileURL else { return }
+        await encodeFile(url)
     }
     
     func decodeFile() async {
